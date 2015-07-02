@@ -15,67 +15,122 @@
  */
 package se.transmode.gradle.plugins.docker.client;
 
+import com.github.dockerjava.api.command.BuildImageCmd;
+import com.github.dockerjava.api.command.PushImageCmd;
+import com.github.dockerjava.api.model.EventStreamItem;
+import com.github.dockerjava.api.model.Identifier;
+import com.github.dockerjava.api.model.PushEventStreamItem;
+import com.github.dockerjava.api.model.Repository;
+import com.github.dockerjava.core.DockerClientBuilder;
+import com.github.dockerjava.core.DockerClientConfig;
 import com.google.common.base.Preconditions;
-import com.sun.jersey.api.client.ClientResponse;
 import org.apache.commons.lang.StringUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.io.File;
+import java.io.IOException;
 
-public class JavaDockerClient extends com.github.dockerjava.client.DockerClient implements DockerClient {
+public class JavaDockerClient implements DockerClient {
 
     private static Logger log = Logging.getLogger(JavaDockerClient.class);
-
-    JavaDockerClient() {
-        super();
-    }
+    private com.github.dockerjava.api.DockerClient client;
 
     JavaDockerClient(String url) {
-        super(url);
+        client = com.github.dockerjava.core.DockerClientImpl.getInstance(url);
+    }
+
+    JavaDockerClient(DockerClientConfig config) {
+        client = DockerClientBuilder.getInstance(config).build();
     }
 
     @Override
-    public String buildImage(File buildDir, String tag) {
+    public void buildImage(File buildDir, String tag) {
         Preconditions.checkNotNull(tag, "Image tag can not be null.");
         Preconditions.checkArgument(!tag.isEmpty(),  "Image tag can not be empty.");
-        ClientResponse response = buildImageCmd(buildDir).withTag(tag).exec();
-        return checkResponse(response);
+        BuildImageCmd.Response response = buildImageCmd(buildDir).withTag(tag).exec();
+        checkResponse(response);
+    }
+
+    private BuildImageCmd buildImageCmd(File buildDir) {
+        return client.buildImageCmd(buildDir);
     }
 
     @Override
-    public String pushImage(String tag) {
+    public void pushImage(String repository,String tag) {
+        Preconditions.checkNotNull(repository, "Image repository can not be null.");
         Preconditions.checkNotNull(tag, "Image tag can not be null.");
         Preconditions.checkArgument(!tag.isEmpty(),  "Image tag can not be empty.");
-        ClientResponse response = pushImageCmd(tag).exec();
-        return checkResponse(response);
+        PushImageCmd.Response response = pushImageCmd(repository,tag).exec();
+        checkResponse(response);
     }
 
-    private static String checkResponse(ClientResponse response) {
-        String msg = response.getEntity(String.class);
-        if (response.getStatusInfo() != ClientResponse.Status.OK) {
+    private PushImageCmd pushImageCmd(String repository,String tag) {
+        return client.pushImageCmd(new Identifier(new Repository(repository), tag));
+    }
+
+    @Override
+    public void tagImage(String imageID,String repository,String tag){
+        Preconditions.checkNotNull(imageID, "Image imageID can not be null.");
+        Preconditions.checkNotNull(repository, "Image repository can not be null.");
+        Preconditions.checkNotNull(tag, "Image tag can not be null.");
+        Preconditions.checkArgument(!tag.isEmpty(),  "Image tag can not be empty.");
+        client.tagImageCmd(imageID,repository,tag).withForce().exec();
+    }
+
+    private static void checkResponse(BuildImageCmd.Response response) {
+        try {
+            Iterable<EventStreamItem> items = response.getItems();
+            for(EventStreamItem item:items){
+                if(item.getError() == null){
+                    log.info(item.getStream());
+                }else{
+                    throw new GradleException("Docker API error:"+item.getErrorDetail());
+                }
+            }
+        }catch (IOException e){
             throw new GradleException(
-                    "Docker API error: Failed to build Image:\n"+msg);
+                    "Docker API error: Failed to build Image:\n" + e.getMessage(),e);
         }
-        return msg;
     }
 
-    public static JavaDockerClient create(String url, String user, String password, String email) {
-        JavaDockerClient client;
+    private static void checkResponse(PushImageCmd.Response response) {
+        try {
+            Iterable<PushEventStreamItem> items = response.getItems();
+            for(PushEventStreamItem item:items){
+                log.info(item.toString());
+            }
+        }catch (IOException e){
+            throw new GradleException(
+                    "Docker API error: Failed to build Image:\n" + e.getMessage(),e);
+        }
+    }
+
+
+    public static JavaDockerClient create(String url, String serverAddress, String user, String password, String email) {
+
         if (StringUtils.isEmpty(url)) {
             log.info("Connecting to localhost");
-            // TODO -- use no-arg constructor once we switch to java-docker 0.9.1
-            client = new JavaDockerClient("http://localhost:2375");
+            url = "http://localhost:2375";
         } else {
             log.info("Connecting to {}", url);
-            client = new JavaDockerClient(url);
         }
-
-        if (StringUtils.isNotEmpty(user)) {
-            client.setCredentials(user, password, email);
+        DockerClientConfig.DockerClientConfigBuilder configBuilder = DockerClientConfig.createDefaultConfigBuilder()
+                .withUri(url);
+        if(user != null){
+            configBuilder.withUsername(user);
         }
-
+        if(password != null){
+            configBuilder.withPassword(password);
+        }
+        if(email != null){
+            configBuilder.withEmail(email);
+        }
+        if(serverAddress != null){
+            configBuilder.withServerAddress(serverAddress);
+        }
+        JavaDockerClient client = new JavaDockerClient(configBuilder.build());
         return client;
     }
 }

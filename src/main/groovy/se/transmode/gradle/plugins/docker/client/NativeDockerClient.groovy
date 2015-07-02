@@ -28,17 +28,26 @@ class NativeDockerClient implements DockerClient {
     }
 
     @Override
-    String buildImage(File buildDir, String tag) {
+    void buildImage(File buildDir, String tag) {
         Preconditions.checkArgument(tag as Boolean,  "Image tag can not be empty or null.")
         def cmdLine = "${binary} build -t ${tag} ${buildDir}"
-        return executeAndWait(cmdLine)
+        executeAndWait(cmdLine)
     }
 
     @Override
-    String pushImage(String tag) {
+    void pushImage(String repository,String tag) {
         Preconditions.checkArgument(tag as Boolean,  "Image tag can not be empty or null.")
-        def cmdLine = "${binary} push ${tag}"
-        return executeAndWait(cmdLine)
+        def cmdLine = "${binary} push ${repository}:${tag}"
+        executeAndWait(cmdLine)
+    }
+
+    @Override
+    void tagImage(String imageID, String repository, String tag) {
+        Preconditions.checkArgument(tag as Boolean,  "Image tag can not be empty or null.")
+        Preconditions.checkArgument(imageID as Boolean,  "Image imageID can not be empty or null.")
+        Preconditions.checkArgument(repository as Boolean,  "Image repository can not be empty or null.")
+        def cmdLine = "${binary} tag -f ${imageID} ${repository}:${tag}"
+        executeAndWait(cmdLine)
     }
 
     private static String executeAndWait(String cmdLine) {

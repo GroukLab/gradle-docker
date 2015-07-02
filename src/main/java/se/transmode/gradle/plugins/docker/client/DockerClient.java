@@ -18,6 +18,7 @@ package se.transmode.gradle.plugins.docker.client;
 import java.io.File;
 
 public interface DockerClient {
-    public String buildImage(File buildDir, String tag);
-    public String pushImage(String tag);
+    public void buildImage(File buildDir, String tag);
+    public void pushImage(String repository,String tag);
+    public void tagImage(String imageID,String repository,String tag);
 }

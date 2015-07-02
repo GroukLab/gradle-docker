@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 package se.transmode.gradle.plugins.docker
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.io.Files
 
+import com.google.common.annotations.VisibleForTesting
+import com.google.common.io.Files
 import org.gradle.api.DefaultTask
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.TaskAction
-
 import se.transmode.gradle.plugins.docker.client.DockerClient
 import se.transmode.gradle.plugins.docker.client.JavaDockerClient
 import se.transmode.gradle.plugins.docker.client.NativeDockerClient
@@ -48,6 +47,8 @@ class DockerTask extends DefaultTask {
     Boolean push
     // Hostname, port of the docker image registry unless Docker Registry Hub is used
     String registry
+    // also auto tag as latest
+    Boolean tagLatest;
 
     /**
      * Path to external Dockerfile
@@ -202,6 +203,11 @@ class DockerTask extends DefaultTask {
         stageDir = new File(stageDir, contextDir)
     }
 
+    String getRegistryUrl(){
+        //https ?
+        return "http://"+registry
+    }
+
     private File createDirIfNotExists(File dir) {
         if (!dir.exists())
             dir.mkdirs()
@@ -237,13 +243,23 @@ class DockerTask extends DefaultTask {
         setupStageDir()
         buildDockerfile().writeToFile(new File(stageDir, 'Dockerfile'))
         tag = getImageTag()
-        logger.info('Determining image tag: {}', tag)
-
+        tagVersion = this.getTagVersion()
+        logger.info('Determining image tag: {}:{}', tag, tagVersion)
+        boolean tagLatest
+        tagLatest = this.tagLatest && !tagVersion.equals("latest")
         if (!dryRun) {
             DockerClient client = getClient()
-            println client.buildImage(stageDir, tag)
+            println "build Image: ${tag}:${tagVersion}"
+            client.buildImage(stageDir, "${tag}:${tagVersion}")
+            if(tagLatest){
+                client.tagImage("${tag}:${tagVersion}",tag,"latest")
+            }
             if (push) {
-                println client.pushImage(tag)
+                println "push Image: ${tag}:${tagVersion}"
+                client.pushImage(tag,tagVersion)
+                if(tagLatest){
+                    client.pushImage(tag,"latest")
+                }
             }
         }
 
@@ -252,7 +268,7 @@ class DockerTask extends DefaultTask {
     private String getImageTag() {
         String tag
         tag = this.tag ?: getDefaultImageTag()
-        return appendImageTagVersion(tag)
+        return tag
     }
 
     private String getDefaultImageTag() {
@@ -276,12 +292,22 @@ class DockerTask extends DefaultTask {
 
     }
 
+    private String getTagVersion() {
+        def version = tagVersion ?: project.version
+        if(version == 'unspecified') {
+            version = 'latest'
+        }
+        return version;
+
+    }
+
     private DockerClient getClient() {
         DockerClient client
         if(getUseApi()) {
             logger.info("Using the Docker remote API.")
             client = JavaDockerClient.create(
                     getHostUrl(),
+                    getRegistryUrl(),
                     getApiUsername(),
                     getApiPassword(),
                     getApiEmail())
