@@ -23,6 +23,7 @@ import com.github.dockerjava.api.model.PushEventStreamItem;
 import com.github.dockerjava.api.model.Repository;
 import com.github.dockerjava.core.DockerClientBuilder;
 import com.github.dockerjava.core.DockerClientConfig;
+import com.github.dockerjava.jaxrs.DockerCmdExecFactoryImpl;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang.StringUtils;
 import org.gradle.api.GradleException;
@@ -42,7 +43,7 @@ public class JavaDockerClient implements DockerClient {
     }
 
     JavaDockerClient(DockerClientConfig config) {
-        client = DockerClientBuilder.getInstance(config).build();
+        client = DockerClientBuilder.getInstance(config).withDockerCmdExecFactory(new DockerCmdExecFactoryImpl()).build();
     }
 
     @Override
