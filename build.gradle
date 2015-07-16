@@ -34,6 +34,8 @@ configurations {
     integTestRuntime.extendsFrom testRuntime
 }
 
+sourceCompatibility = 1.7
+
 dependencies {
     compile gradleApi()
     compile localGroovy()
