@@ -265,7 +265,7 @@ class DockerTask extends DefaultTask {
 
     }
 
-    private String getImageTag() {
+    public String getImageTag() {
         String tag
         tag = this.tag ?: getDefaultImageTag()
         return tag
@@ -281,15 +281,6 @@ class DockerTask extends DefaultTask {
             tag = "${-> applicationName}"
         }
         return tag
-    }
-
-    private String appendImageTagVersion(String tag) {
-        def version = tagVersion ?: project.version
-        if(version == 'unspecified') {
-            version = 'latest'
-        }
-        return "${tag}:${version}"
-
     }
 
     private String getTagVersion() {

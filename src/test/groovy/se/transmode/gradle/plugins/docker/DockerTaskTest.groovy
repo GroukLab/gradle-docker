@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package se.transmode.gradle.plugins.docker
+
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -24,6 +25,7 @@ import org.junit.rules.TemporaryFolder
 
 import static org.hamcrest.Matchers.*
 import static org.junit.Assert.assertThat
+import static org.junit.Assert.assertTrue
 
 class DockerTaskTest {
 
@@ -41,7 +43,15 @@ class DockerTaskTest {
     public TemporaryFolder testFolder = new TemporaryFolder()
 
     private Project createProject() {
-        def project = ProjectBuilder.builder().build()
+        return createProject(null);
+    }
+
+    private Project createProject(String name) {
+        ProjectBuilder builder = ProjectBuilder.builder();
+        if(name != null){
+            builder.withName(name);
+        }
+        def project = builder.build()
         project.extensions.create(DockerPlugin.EXTENSION_NAME, DockerPluginExtension)
         return project
     }
@@ -136,5 +146,27 @@ class DockerTaskTest {
                 contains(*TEST_INSTRUCTIONS,
                         "MAINTAINER ${TEST_MAINTAINER}".toString(),
                         "ENV ${TEST_ENV.join(' ')}".toString()))
+    }
+
+    @Test
+    public void testTagLatest(){
+        def task = createTask(createProject())
+        task.tagLatest = true
+        assertTrue task.tagLatest
+    }
+
+    @Test
+    public void testGetImageTag(){
+        def task = createTask(createProject())
+        task.tag = "testTag"
+        assertThat(task.getImageTag(),equalTo("testTag"));
+    }
+
+    @Test
+    public void testGetImageDefaultTag(){
+        def project = createProject("docker_demo");
+        def task = createTask(project)
+        task.registry = "registry.docker.io"
+        assertThat(task.getImageTag(),equalTo(task.registry+"/"+project.name));
     }
 }
